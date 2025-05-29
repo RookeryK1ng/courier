@@ -1,6 +1,6 @@
-from fastapi import FastAPI, UploadFile, File, Form, Body
+from fastapi import FastAPI, UploadFile, File, Form, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import openai
+from openai import OpenAI
 import csv
 import io
 import requests
@@ -21,8 +21,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Get OpenAI API key from environment variables
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# Initialize OpenAI client
+openai_api_key = os.getenv("OPENAI_API_KEY")
+openai_client = OpenAI(api_key=openai_api_key) if openai_api_key else None
 
 @app.get("/")
 async def root():
@@ -30,53 +31,105 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "openai_configured": bool(openai.api_key)}
+    return {"status": "healthy", "openai_configured": bool(openai_api_key)}
+
+@app.get("/test")
+async def test_endpoint():
+    """Test endpoint to verify API is working"""
+    return {
+        "message": "API is working!",
+        "openai_configured": bool(openai_api_key),
+        "openai_key_preview": f"{openai_api_key[:10]}..." if openai_api_key else "NOT SET"
+    }
 
 @app.post("/generate-emails/")
 async def generate_emails(
     file: UploadFile = File(...),
     campaign_content: str = Form(...)
 ):
-    if not openai.api_key:
-        return {"error": "OpenAI API key not configured"}
+    if not openai_client:
+        raise HTTPException(
+            status_code=500, 
+            detail="OpenAI API key not configured. Please set the OPENAI_API_KEY environment variable."
+        )
     
     try:
+        # Read and parse CSV file
         contents = await file.read()
         contacts = []
-        reader = csv.DictReader(io.StringIO(contents.decode()))
-        for row in reader:
-            contacts.append(row)
+        
+        try:
+            reader = csv.DictReader(io.StringIO(contents.decode()))
+            for row in reader:
+                if row:  # Skip empty rows
+                    contacts.append(row)
+        except Exception as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Failed to parse CSV file: {str(e)}. Please ensure your CSV has headers and proper formatting."
+            )
+        
+        if not contacts:
+            raise HTTPException(
+                status_code=400,
+                detail="No valid contacts found in CSV file. Please check your file format."
+            )
 
+        print(f"Processing {len(contacts)} contacts...")
         emails = []
-        for contact in contacts:
-            prompt = (
-                f"Write a professional, personalized marketing email to {contact.get('name', 'valued customer')} "
-                f"at {contact.get('company', 'their company')}.\n"
-                f"Campaign content: {campaign_content}\n"
-                f"Recipient email: {contact.get('email', '')}\n"
-                f"Make it engaging, professional, and include a clear call-to-action."
-            )
+        
+        for i, contact in enumerate(contacts):
+            print(f"Generating email {i+1}/{len(contacts)} for {contact.get('name', 'Unknown')}")
             
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=300,
-                temperature=0.7
-            )
-            
-            email_text = response.choices[0].message['content']
-            emails.append({
-                "to": contact.get('email', ''),
-                "name": contact.get('name', ''),
-                "company": contact.get('company', ''),
-                "subject": f"Exciting Partnership Opportunity - {contact.get('company', 'Your Company')}",
-                "body": email_text
-            })
+            try:
+                prompt = (
+                    f"Write a professional, personalized marketing email to {contact.get('name', 'valued customer')} "
+                    f"at {contact.get('company', 'their company')}.\n"
+                    f"Campaign content: {campaign_content}\n"
+                    f"Recipient details: {contact.get('position', '')} in {contact.get('industry', '')} industry\n"
+                    f"Make it engaging, professional, and include a clear call-to-action. "
+                    f"Keep it concise (under 200 words)."
+                )
+                
+                response = openai_client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=300,
+                    temperature=0.7
+                )
+                
+                email_text = response.choices[0].message.content
+                
+                emails.append({
+                    "to": contact.get('email', ''),
+                    "name": contact.get('name', ''),
+                    "company": contact.get('company', ''),
+                    "subject": f"Partnership Opportunity with {contact.get('company', 'Your Company')}",
+                    "body": email_text
+                })
+                
+            except Exception as e:
+                print(f"Error generating email for {contact.get('name', 'contact')}: {str(e)}")
+                # Continue with other contacts, but log the error
+                emails.append({
+                    "to": contact.get('email', ''),
+                    "name": contact.get('name', ''),
+                    "company": contact.get('company', ''),
+                    "subject": f"Partnership Opportunity with {contact.get('company', 'Your Company')}",
+                    "body": f"Error generating personalized content for {contact.get('name', 'this contact')}. Please contact support."
+                })
 
+        print(f"Successfully generated {len(emails)} emails")
         return {"emails": emails, "count": len(emails)}
     
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
     except Exception as e:
-        return {"error": f"Failed to generate emails: {str(e)}"}
+        print(f"Unexpected error in generate_emails: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}"
+        )
 
 @app.post("/send-emails/")
 async def send_emails(approved_emails: list = Body(...)):
