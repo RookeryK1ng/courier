@@ -47,12 +47,6 @@ async def generate_emails(
     file: UploadFile = File(...),
     campaign_content: str = Form(...)
 ):
-    if not openai_client:
-        raise HTTPException(
-            status_code=500, 
-            detail="OpenAI API key not configured. Please set the OPENAI_API_KEY environment variable."
-        )
-    
     try:
         # Read and parse CSV file
         contents = await file.read()
@@ -78,49 +72,78 @@ async def generate_emails(
         print(f"Processing {len(contacts)} contacts...")
         emails = []
         
-        for i, contact in enumerate(contacts):
-            print(f"Generating email {i+1}/{len(contacts)} for {contact.get('name', 'Unknown')}")
-            
-            try:
-                prompt = (
-                    f"Write a professional, personalized marketing email to {contact.get('name', 'valued customer')} "
-                    f"at {contact.get('company', 'their company')}.\n"
-                    f"Campaign content: {campaign_content}\n"
-                    f"Recipient details: {contact.get('position', '')} in {contact.get('industry', '')} industry\n"
-                    f"Make it engaging, professional, and include a clear call-to-action. "
-                    f"Keep it concise (under 200 words)."
-                )
-                
-                response = openai_client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=300,
-                    temperature=0.7
-                )
-                
-                email_text = response.choices[0].message.content
-                
-                emails.append({
-                    "to": contact.get('email', ''),
-                    "name": contact.get('name', ''),
-                    "company": contact.get('company', ''),
-                    "subject": f"Partnership Opportunity with {contact.get('company', 'Your Company')}",
-                    "body": email_text
-                })
-                
-            except Exception as e:
-                print(f"Error generating email for {contact.get('name', 'contact')}: {str(e)}")
-                # Continue with other contacts, but log the error
-                emails.append({
-                    "to": contact.get('email', ''),
-                    "name": contact.get('name', ''),
-                    "company": contact.get('company', ''),
-                    "subject": f"Partnership Opportunity with {contact.get('company', 'Your Company')}",
-                    "body": f"Error generating personalized content for {contact.get('name', 'this contact')}. Please contact support."
-                })
+        # Check if OpenAI is available
+        if not openai_client:
+            print("OpenAI not configured, using dummy mode...")
+            # Generate dummy emails for testing
+            for i, contact in enumerate(contacts):
+                dummy_email = f"""Hi {contact.get('name', 'there')},
 
-        print(f"Successfully generated {len(emails)} emails")
-        return {"emails": emails, "count": len(emails)}
+I hope this email finds you well! I'm reaching out from our team regarding an exciting opportunity.
+
+{campaign_content}
+
+Given your role as {contact.get('position', 'a professional')} at {contact.get('company', 'your company')}, I thought this might be of interest to you.
+
+Would you be available for a quick 15-minute call to discuss further?
+
+Best regards,
+The Courier Team
+
+P.S. This is a demo email generated without OpenAI integration."""
+                
+                emails.append({
+                    "to": contact.get('email', ''),
+                    "name": contact.get('name', ''),
+                    "company": contact.get('company', ''),
+                    "subject": f"Partnership Opportunity - {contact.get('company', 'Your Company')}",
+                    "body": dummy_email
+                })
+        else:
+            # Use OpenAI for real personalized emails
+            for i, contact in enumerate(contacts):
+                print(f"Generating email {i+1}/{len(contacts)} for {contact.get('name', 'Unknown')}")
+                
+                try:
+                    prompt = (
+                        f"Write a professional, personalized marketing email to {contact.get('name', 'valued customer')} "
+                        f"at {contact.get('company', 'their company')}.\n"
+                        f"Campaign content: {campaign_content}\n"
+                        f"Recipient details: {contact.get('position', '')} in {contact.get('industry', '')} industry\n"
+                        f"Make it engaging, professional, and include a clear call-to-action. "
+                        f"Keep it concise (under 200 words)."
+                    )
+                    
+                    response = openai_client.chat.completions.create(
+                        model="gpt-3.5-turbo",
+                        messages=[{"role": "user", "content": prompt}],
+                        max_tokens=300,
+                        temperature=0.7
+                    )
+                    
+                    email_text = response.choices[0].message.content
+                    
+                    emails.append({
+                        "to": contact.get('email', ''),
+                        "name": contact.get('name', ''),
+                        "company": contact.get('company', ''),
+                        "subject": f"Partnership Opportunity with {contact.get('company', 'Your Company')}",
+                        "body": email_text
+                    })
+                    
+                except Exception as e:
+                    print(f"Error generating email for {contact.get('name', 'contact')}: {str(e)}")
+                    # Continue with other contacts, but log the error
+                    emails.append({
+                        "to": contact.get('email', ''),
+                        "name": contact.get('name', ''),
+                        "company": contact.get('company', ''),
+                        "subject": f"Partnership Opportunity with {contact.get('company', 'Your Company')}",
+                        "body": f"Error generating personalized content for {contact.get('name', 'this contact')}. Please contact support."
+                    })
+
+        print(f"Successfully generated {len(emails)} emails (OpenAI: {'enabled' if openai_client else 'disabled - using dummy mode'})")
+        return {"emails": emails, "count": len(emails), "mode": "openai" if openai_client else "dummy"}
     
     except HTTPException:
         raise  # Re-raise HTTP exceptions
