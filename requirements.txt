@@ -1,5 +1,7 @@
-fastapi
-uvicorn
-python-multipart
-openai
-requests 
+fastapi==0.104.1
+uvicorn==0.24.0
+python-multipart==0.0.6
+openai>=1.0.0
+requests==2.31.0
+pandas>=1.5.0
+openpyxl>=3.0.0 
