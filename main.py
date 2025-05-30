@@ -141,7 +141,7 @@ async def generate_emails(
         emails = []
         
         # Create custom signature
-        signature_lines = ["Best regards,"]
+        signature_lines = []
         signature_lines.append(sender_name)
         if sender_title:
             signature_lines.append(sender_title)
@@ -190,7 +190,7 @@ P.S. This is a demo email generated without OpenAI integration."""
                         f"Sender: {sender_name}" + (f", {sender_title}" if sender_title else "") + (f" at {sender_company}" if sender_company else "") + "\n"
                         f"Make it engaging, professional, and include a clear call-to-action. "
                         f"Keep it concise (under 200 words). "
-                        f"End with 'Best regards,' followed by the sender's name and details."
+                        f"End the email with just the sender's name and details on separate lines, no 'Best regards' needed."
                     )
                     
                     response = openai_client.chat.completions.create(
