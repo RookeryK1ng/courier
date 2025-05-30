@@ -90,7 +90,10 @@ async def test_endpoint():
 @app.post("/generate-emails/")
 async def generate_emails(
     file: UploadFile = File(...),
-    campaign_content: str = Form(...)
+    campaign_content: str = Form(...),
+    sender_name: str = Form(...),
+    sender_title: str = Form(""),
+    sender_company: str = Form("")
 ):
     try:
         # Read file contents
@@ -137,6 +140,16 @@ async def generate_emails(
         print(f"Available columns: {list(df.columns)}")
         emails = []
         
+        # Create custom signature
+        signature_lines = ["Best regards,"]
+        signature_lines.append(sender_name)
+        if sender_title:
+            signature_lines.append(sender_title)
+        if sender_company:
+            signature_lines.append(sender_company)
+        
+        custom_signature = "\n".join(signature_lines)
+        
         # Check if OpenAI is available
         if not openai_client:
             print("OpenAI not configured, using dummy mode...")
@@ -152,8 +165,7 @@ Given your role as {contact.get('position', 'a professional')} at {contact.get('
 
 Would you be available for a quick 15-minute call to discuss further?
 
-Best regards,
-The Courier Team
+{custom_signature}
 
 P.S. This is a demo email generated without OpenAI integration."""
                 
@@ -175,8 +187,10 @@ P.S. This is a demo email generated without OpenAI integration."""
                         f"at {contact.get('company', 'their company')}.\n"
                         f"Campaign content: {campaign_content}\n"
                         f"Recipient details: {contact.get('position', '')} in {contact.get('industry', '')} industry\n"
+                        f"Sender: {sender_name}" + (f", {sender_title}" if sender_title else "") + (f" at {sender_company}" if sender_company else "") + "\n"
                         f"Make it engaging, professional, and include a clear call-to-action. "
-                        f"Keep it concise (under 200 words)."
+                        f"Keep it concise (under 200 words). "
+                        f"End with 'Best regards,' followed by the sender's name and details."
                     )
                     
                     response = openai_client.chat.completions.create(
