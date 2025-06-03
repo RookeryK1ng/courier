@@ -646,6 +646,16 @@ async def debug_lead_addition():
             }
         }
 
+@app.get("/version")
+async def get_version():
+    """Get version info to verify deployment"""
+    return {
+        "version": "2.2-activation-fixes",
+        "deployment_time": "2025-06-03T18:00:00Z",
+        "activation_fix_deployed": True,
+        "commit": "0a974c3"
+    }
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
