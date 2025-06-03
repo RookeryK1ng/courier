@@ -98,12 +98,10 @@ class InstantlyClient:
                 {
                     "steps": [
                         {
-                            "subject": email_subject,
-                            "body": email_body,
-                            "day": 1,        # Required: Day number
-                            "type": "email", # Required: Step type
-                            "delay": 0,      # Required: Delay in days
-                            "variants": [    # Required: Email variants
+                            "day": 1,        # REQUIRED: Day number for step
+                            "type": "email", # REQUIRED: Step type
+                            "delay": 0,      # REQUIRED: Delay in days
+                            "variants": [    # REQUIRED: Email variants array
                                 {
                                     "subject": email_subject,
                                     "body": email_body
@@ -112,7 +110,15 @@ class InstantlyClient:
                         }
                     ]
                 }
-            ]
+            ],
+            # Additional fields that may be required for activation
+            "stop_on_reply": False,          # Prevent stopping on replies
+            "text_only": False,              # Enable HTML emails
+            "link_tracking": True,           # Enable link tracking
+            "open_tracking": True,           # Enable open tracking
+            "stop_on_auto_reply": False,     # Don't stop on auto-replies
+            "allow_risky_contacts": False,   # Conservative setting
+            "disable_bounce_protect": False  # Keep bounce protection
         }
         
         try:
@@ -277,20 +283,33 @@ class InstantlyClient:
     def activate_campaign(self, campaign_id: str) -> Dict:
         """Activate a draft campaign"""
         try:
-            # For activation, we don't need Content-Type: application/json since it expects empty body
+            # Check if campaign has any leads first
+            try:
+                leads_response = self._make_request("GET", "/leads", {"campaign": campaign_id})
+                leads_count = len(leads_response.get('items', []))
+                if leads_count == 0:
+                    raise Exception(f"Campaign {campaign_id} has no leads. Add leads before activation.")
+                print(f"   Campaign has {leads_count} leads - proceeding with activation")
+            except Exception as leads_error:
+                if "no leads" not in str(leads_error):
+                    print(f"   Warning: Could not check leads count: {leads_error}")
+            
+            # For activation, send POST request with NO BODY (not even JSON)
             headers = {
                 "Authorization": f"Bearer {self.api_key}"
+                # Explicitly NOT setting Content-Type
             }
             
             print(f"🔍 INSTANTLY API REQUEST:")
             print(f"   Method: POST")
             print(f"   URL: {self.base_url}/campaigns/{campaign_id}/activate")
             print(f"   Headers: {headers}")
-            print(f"   Data: None (empty body)")
+            print(f"   Body: EMPTY (no content-type header)")
             
             response = requests.post(
                 f"{self.base_url}/campaigns/{campaign_id}/activate",
                 headers=headers
+                # NO data/json parameter - completely empty body
             )
             
             print(f"✅ INSTANTLY API RESPONSE:")
