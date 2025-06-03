@@ -1,3 +1,7 @@
+"""
+FastAPI application for email generation and sending via Instantly.ai
+Updated with campaign activation fixes - v2.1
+"""
 from fastapi import FastAPI, UploadFile, File, Form, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
