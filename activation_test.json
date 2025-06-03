@@ -1,0 +1,10 @@
+{
+  "approved_emails": [
+    {
+      "to": "final-test@example.com",
+      "name": "Final Test User",
+      "subject": "FINAL PROOF - Campaign Will Activate Successfully",
+      "body": "This campaign will be properly configured with email_list and will activate successfully, appearing in your Instantly dashboard as an ACTIVE campaign ready to send emails."
+    }
+  ]
+} 

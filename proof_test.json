@@ -1,0 +1,10 @@
+{
+  "approved_emails": [
+    {
+      "to": "proof-test@example.com",
+      "name": "Proof Test User",
+      "subject": "PROOF TEST - System Working 2025-01-30",
+      "body": "This is definitive proof that the lead attachment system is working correctly. Campaign created at 2025-01-30 with leads properly attached to campaigns in Instantly."
+    }
+  ]
+} 

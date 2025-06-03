@@ -1,0 +1,10 @@
+{
+  "approved_emails": [
+    {
+      "to": "debug@example.com",
+      "name": "Debug User",
+      "subject": "DEBUG TEST - Lead Addition",
+      "body": "This test should show us the exact lead addition error"
+    }
+  ]
+} 

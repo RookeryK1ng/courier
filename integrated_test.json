@@ -1,0 +1,10 @@
+{
+  "approved_emails": [
+    {
+      "to": "integration-test@example.com",
+      "name": "Integration Test User",
+      "subject": "INTEGRATED ACTIVATION - Final System Test",
+      "body": "This campaign tests the complete integrated activation system. It should be automatically created, have leads added, and then be activated to appear in your Instantly dashboard as an ACTIVE campaign ready to send emails."
+    }
+  ]
+} 

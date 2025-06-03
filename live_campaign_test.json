@@ -1,0 +1,25 @@
+{
+  "approved_emails": [
+    {
+      "to": "sarah.johnson@techcorp.com",
+      "name": "Sarah Johnson",
+      "company": "TechCorp Solutions",
+      "subject": "Commercial Real Estate Investment Opportunity",
+      "body": "Hi Sarah,\n\nI hope this email finds you well! I'm reaching out because TechCorp Solutions might be interested in our exclusive commercial real estate investment opportunities.\n\nGiven your role in the tech industry, I thought you'd appreciate our portfolio of modern office spaces and tech hubs that are generating strong returns for our investors.\n\nWould you be available for a brief 15-minute call next week to discuss how this could benefit TechCorp Solutions?\n\nBest regards,\nRob Mitchell\nBiscred Commercial Real Estate"
+    },
+    {
+      "to": "mike.davis@retailgroup.com",
+      "name": "Mike Davis", 
+      "company": "Retail Group Inc",
+      "subject": "Commercial Real Estate Investment Opportunity",
+      "body": "Hi Mike,\n\nI hope this email finds you well! I'm reaching out because Retail Group Inc might be interested in our exclusive commercial real estate investment opportunities.\n\nGiven your expertise in retail operations, I thought you'd be particularly interested in our prime retail locations and shopping center investments that are delivering excellent returns.\n\nWould you be available for a brief 15-minute call this week to explore how this aligns with Retail Group Inc's growth strategy?\n\nBest regards,\nRob Mitchell\nBiscred Commercial Real Estate"
+    },
+    {
+      "to": "jennifer.wong@manufacturing.co",
+      "name": "Jennifer Wong",
+      "company": "Advanced Manufacturing Co",
+      "subject": "Commercial Real Estate Investment Opportunity", 
+      "body": "Hi Jennifer,\n\nI hope this email finds you well! I'm reaching out because Advanced Manufacturing Co might be interested in our exclusive commercial real estate investment opportunities.\n\nOur industrial and warehouse properties could be a perfect fit for companies like yours looking to diversify their investment portfolio while staying connected to the manufacturing sector.\n\nWould you have 15 minutes this week for a quick call to discuss how this could complement Advanced Manufacturing Co's investment strategy?\n\nBest regards,\nRob Mitchell\nBiscred Commercial Real Estate"
+    }
+  ]
+} 

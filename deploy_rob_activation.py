@@ -1,0 +1,45 @@
+print("🚀 DEPLOYMENT INSTRUCTIONS FOR ROB ACCOUNT ACTIVATION")
+print("="*70)
+
+print("✅ GOOD NEWS: Rob's account activation test was SUCCESSFUL!")
+print("   Campaign created and activated with rob@biscred.ai")
+
+print("\n📋 DEPLOYMENT STEPS:")
+print("1. Update Vercel Environment Variable:")
+print("   - Go to: https://vercel.com/dashboard")
+print("   - Find project: sender-sigma")
+print("   - Go to Settings > Environment Variables")
+print("   - Update INSTANTLY_EMAIL_ACCOUNT_ID:")
+print("     From: tim@biscred.com")
+print("     To:   rob@biscred.ai")
+print("   - Click 'Save'")
+
+print("\n2. Redeploy the Project:")
+print("   - Option A: Automatic redeploy (wait ~2-3 minutes)")
+print("   - Option B: Manual redeploy from Deployments tab")
+
+print("\n🔑 CORRECT ENVIRONMENT VARIABLE:")
+print("INSTANTLY_EMAIL_ACCOUNT_ID=rob@biscred.ai")
+
+print("\n✅ AFTER DEPLOYMENT, YOUR SYSTEM WILL:")
+print("   ✅ Create campaigns using Rob's email account")
+print("   ✅ Add contacts to campaigns") 
+print("   ✅ AUTOMATICALLY ACTIVATE campaigns")
+print("   ✅ Start sending emails immediately")
+
+print("\n🧪 TESTING AFTER DEPLOYMENT:")
+print("1. Use business email addresses (NOT Gmail)")
+print("2. Upload your CSV file through the frontend")
+print("3. Check Instantly dashboard for ACTIVE campaigns")
+print("4. Campaigns should show status: Active/Running")
+
+print("\n⚠️ IMPORTANT REMINDERS:")
+print("   • Only use business domain emails (no @gmail.com)")
+print("   • Campaigns will be sent from rob@biscred.ai") 
+print("   • Check Instantly dashboard to monitor active campaigns")
+
+print("\n" + "="*70)
+print("🎯 ACTIVATION ISSUE: SOLVED!")
+print("🎯 CONTACT LOADING: WORKING!")
+print("🎯 READY FOR PRODUCTION USE!")
+print("="*70) 

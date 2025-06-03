@@ -1,0 +1,85 @@
+
+Title: Sending Emails Using Instantly API (V2)
+
+Overview:
+The Instantly API (V2) enables users to send emails through campaign workflows and automated replies. It supports advanced campaign features, but does not allow for free-form transactional emails. Below is a guide to using the API for sending emails, including detailed information about the key endpoints.
+
+Steps to Send Emails:
+
+1. Set Up Your Instantly Workspace:
+   - Create an account at https://instantly.ai.
+   - Connect your email account(s) to your Instantly workspace.
+
+2. Generate an API Key:
+   - Navigate to Workspace Settings > API Keys.
+   - Create a new API key with scopes such as:
+     - `campaigns:read`
+     - `campaigns:create`
+     - `emails:create`
+     - `leads:create`
+
+3. Create a Campaign:
+   - Endpoint: POST `/v2/campaigns`
+   - Description: Creates a new campaign.
+   - Required Payload:
+     ```json
+     {
+       "name": "My New Campaign",
+       "email_account_id": "your_connected_email_id",
+       "sequence": [
+         {
+           "subject": "Hello!",
+           "body": "This is my first email in the sequence.",
+           "day": 1
+         }
+       ]
+     }
+     ```
+
+4. Add Leads to a Campaign:
+   - Endpoint: POST `/v2/campaigns/{campaign_id}/leads`
+   - Description: Adds contacts to the campaign.
+   - Required Payload:
+     ```json
+     {
+       "leads": [
+         {
+           "email": "john@example.com",
+           "first_name": "John",
+           "last_name": "Doe"
+         }
+       ]
+     }
+     ```
+
+5. Monitor Campaign and Email Status:
+   - Endpoint: GET `/v2/campaigns/{campaign_id}`
+   - Use this to check campaign status, leads, and performance.
+   - Endpoint: GET `/v2/leads/{lead_id}/emails` to view email history for a lead.
+
+6. Send a Reply to a Previous Email:
+   - Endpoint: POST `/v2/emails/reply`
+   - Description: Sends a reply to a previously sent message in a thread.
+   - Required Payload:
+     ```json
+     {
+       "lead_id": "abc123",
+       "body": "Thanks for your reply!",
+       "subject": "Re: Previous Subject"
+     }
+     ```
+
+Limitations:
+- Instantly is not suitable for one-off transactional email sending.
+- All emails must be part of a campaign or reply to an existing conversation.
+
+Alternatives:
+- For transactional or ad-hoc emails, consider services like:
+  - SendGrid: https://sendgrid.com/docs/API_Reference/
+  - Mailgun: https://documentation.mailgun.com/en/latest/api-sending.html
+  - MailerSend: https://developers.mailersend.com/
+
+Documentation:
+- Instantly API Overview: https://developer.instantly.ai
+- Campaign Endpoint Details: https://developer.instantly.ai/api/v2/campaign
+- Email Reply Endpoint: https://developer.instantly.ai/api/v2/email
