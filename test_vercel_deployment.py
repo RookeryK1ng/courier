@@ -1,107 +1,91 @@
+#!/usr/bin/env python3
+"""
+Test script to verify Vercel deployment status
+"""
 import requests
 import json
 
-def test_vercel_deployment(vercel_url):
-    """Test the Vercel deployment"""
-    
-    print(f"🔍 TESTING VERCEL DEPLOYMENT: {vercel_url}")
-    print("="*60)
+VERCEL_URL = "https://sender-sigma.vercel.app"
+
+def test_vercel_deployment():
+    print("🚀 TESTING VERCEL DEPLOYMENT STATUS")
+    print("="*50)
     
     try:
-        # Test 1: Health check
-        print("📋 TEST 1: Health Check")
-        response = requests.get(f"{vercel_url}/health")
-        print(f"Status: {response.status_code}")
+        # Test 1: Health check to see if app is running
+        print("🏥 Step 1: Health check...")
+        health_response = requests.get(f"{VERCEL_URL}/health", timeout=10)
+        print(f"   Health Status: {health_response.status_code}")
+        if health_response.status_code == 200:
+            health_data = health_response.json()
+            print(f"   Instantly Configured: {health_data.get('instantly_configured')}")
+            print(f"   OpenAI Configured: {health_data.get('openai_configured')}")
         
-        if response.status_code == 200:
-            data = response.json()
-            print(f"✅ Health check passed:")
-            print(f"   OpenAI configured: {data.get('openai_configured')}")
-            print(f"   Instantly configured: {data.get('instantly_configured')}")
-            
-            if not data.get('instantly_configured'):
-                print("❌ ISSUE FOUND: Instantly is not configured in deployment!")
-                return False
-        else:
-            print(f"❌ Health check failed: {response.text}")
-            return False
+        # Test 2: Test a known campaign ID with manual activation
+        print("🧪 Step 2: Testing manual activation endpoint...")
+        test_campaign_id = "7a72cb5d-cbb3-480e-8ac4-5064b6f0c04e"  # From recent test
         
-        # Test 2: Simple email sending test
-        print("\n📋 TEST 2: Email Sending Test")
-        test_emails = [
-            {
-                "to": "vercel.test@example.com",
-                "name": "Vercel Test",
-                "company": "Test Corp",
-                "subject": "Vercel Deployment Test",
-                "body": "Testing the Vercel deployment."
-            }
-        ]
-        
-        response = requests.post(
-            f"{vercel_url}/send-emails/",
-            json={
-                "approved_emails": test_emails,
-                "campaign_name": "Vercel_Test_Campaign",
-                "send_mode": "instantly"
-            },
-            headers={"Content-Type": "application/json"}
+        activation_response = requests.post(
+            f"{VERCEL_URL}/activate-campaign/", 
+            json=test_campaign_id, 
+            timeout=30
         )
         
-        print(f"Status: {response.status_code}")
+        print(f"   Activation Status: {activation_response.status_code}")
+        print(f"   Response Preview: {activation_response.text[:200]}...")
         
-        if response.status_code == 200:
-            data = response.json()
-            print(f"✅ Email sending test response:")
-            print(f"   Mode: {data.get('mode')}")
-            print(f"   Total processed: {data.get('total_processed')}")
-            print(f"   Successful: {data.get('successful_sends')}")
-            print(f"   Failed: {data.get('failed_sends')}")
+        if activation_response.status_code == 200:
+            print("   ✅ SUCCESS: Activation endpoint is working!")
+            activation_data = activation_response.json()
+            campaign_status = activation_data.get('result', {}).get('status')
+            print(f"   Campaign Status: {campaign_status} (1=Active)")
             
-            # Check for specific failures
-            if data.get('results'):
-                for result in data['results']:
-                    print(f"   - {result.get('to')}: {result.get('status')}")
-                    if result.get('status') == 'failed':
-                        print(f"     ❌ Error: {result.get('message')}")
-                    if 'lead_addition' in result:
-                        lead_info = result['lead_addition']
-                        if lead_info.get('failed_leads', 0) > 0:
-                            print(f"     ❌ Lead addition failed:")
-                            for failure in lead_info.get('failed_details', []):
-                                print(f"       - {failure.get('email')}: {failure.get('error')}")
-                        
+            if campaign_status == 1:
+                print("   🎉 CAMPAIGN ACTIVATED: The fixes are deployed!")
+                return True
+            else:
+                print("   ⚠️ Campaign not active, but endpoint is working")
+                return False
         else:
-            print(f"❌ Email sending failed: {response.text}")
+            print("   ❌ FAILED: Activation endpoint returning error")
+            print(f"   Error: {activation_response.text}")
             return False
             
-        return True
-        
     except Exception as e:
-        print(f"❌ Test failed with exception: {e}")
+        print(f"❌ ERROR: {e}")
         return False
 
+def check_git_status():
+    print("📋 CHECKING GIT STATUS:")
+    import subprocess
+    try:
+        # Check git status
+        result = subprocess.run(['git', 'status', '--porcelain'], 
+                              capture_output=True, text=True, cwd='.')
+        if result.stdout.strip():
+            print("   ⚠️ Uncommitted changes found:")
+            print(f"   {result.stdout}")
+        else:
+            print("   ✅ Working directory clean")
+        
+        # Check latest commit
+        result = subprocess.run(['git', 'log', '--oneline', '-1'], 
+                              capture_output=True, text=True, cwd='.')
+        print(f"   Latest commit: {result.stdout.strip()}")
+        
+    except Exception as e:
+        print(f"   ❌ Git check failed: {e}")
+
 if __name__ == "__main__":
-    print("🚀 Vercel Deployment Tester")
-    print("="*60)
-    print("Please enter your Vercel deployment URL:")
-    print("Example: https://your-app-name.vercel.app")
+    check_git_status()
+    print()
+    success = test_vercel_deployment()
     
-    vercel_url = input("Vercel URL: ").strip()
-    
-    if not vercel_url:
-        print("❌ No URL provided. Exiting.")
-        exit(1)
-    
-    if not vercel_url.startswith('http'):
-        vercel_url = f"https://{vercel_url}"
-    
-    success = test_vercel_deployment(vercel_url)
-    
+    print("\n" + "="*50)
     if success:
-        print("\n✅ All tests passed! Your deployment should be working.")
+        print("🎉 VERCEL DEPLOYMENT: SUCCESS")
+        print("✅ Campaign activation is working in production!")
     else:
-        print("\n❌ Tests failed. Please check the errors above and:")
-        print("1. Verify environment variables in Vercel dashboard")
-        print("2. Check Vercel function logs")
-        print("3. Ensure the deployment completed successfully") 
+        print("❌ VERCEL DEPLOYMENT: NEEDS ATTENTION")
+        print("📝 Deployment may not be complete or there's a configuration issue")
+    print("="*50) 
