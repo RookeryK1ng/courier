@@ -6,6 +6,13 @@ import io
 import requests
 import os
 import pandas as pd
+import uuid
+from datetime import datetime
+from dotenv import load_dotenv
+from instantly_client import InstantlyClient
+
+# Load environment variables
+load_dotenv()
 
 app = FastAPI(title="Courier Email API", version="1.0.0")
 
@@ -25,6 +32,9 @@ app.add_middleware(
 # Initialize OpenAI client
 openai_api_key = os.getenv("OPENAI_API_KEY")
 openai_client = OpenAI(api_key=openai_api_key) if openai_api_key else None
+
+# Initialize Instantly client
+instantly_client = InstantlyClient()
 
 def normalize_contact_data(df):
     """
@@ -76,7 +86,11 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "openai_configured": bool(openai_api_key)}
+    return {
+        "status": "healthy", 
+        "openai_configured": bool(openai_api_key),
+        "instantly_configured": instantly_client.is_configured()
+    }
 
 @app.get("/test")
 async def test_endpoint():
@@ -234,28 +248,399 @@ P.S. This is a demo email generated without OpenAI integration."""
         )
 
 @app.post("/send-emails/")
-async def send_emails(approved_emails: list = Body(...)):
-    # Placeholder for Instantly API integration
+async def send_emails(
+    approved_emails: list = Body(...),
+    campaign_name: str = Body(None),
+    send_mode: str = Body("instantly")  # "instantly" or "fallback"
+):
+    """
+    Send emails via Instantly API or fallback to simulation mode
+    """
     try:
+        print(f"📧 SEND EMAILS REQUEST:")
+        print(f"   Email count: {len(approved_emails)}")
+        print(f"   Campaign name: {campaign_name}")
+        print(f"   Send mode: {send_mode}")
+        print(f"   Instantly configured: {instantly_client.is_configured()}")
+        
+        # Validate input
+        if not approved_emails:
+            raise HTTPException(status_code=400, detail="No emails provided")
+        
+        # Check if Instantly is configured
+        if send_mode == "instantly" and not instantly_client.is_configured():
+            print("⚠️ Instantly not configured, falling back to simulation mode")
+            send_mode = "fallback"
+        
+        if send_mode == "instantly":
+            print("🚀 Using Instantly API mode")
+            return await _send_emails_via_instantly(approved_emails, campaign_name)
+        else:
+            print("🎭 Using simulation mode")
+            return await _send_emails_simulation(approved_emails)
+            
+    except Exception as e:
+        print(f"❌ ERROR in send_emails: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to send emails: {str(e)}")
+
+async def _send_emails_via_instantly(approved_emails: list, campaign_name: str = None) -> dict:
+    """Send emails using Instantly API via campaigns"""
+    try:
+        print(f"🎯 STARTING INSTANTLY EMAIL PROCESS:")
+        
+        # Generate campaign name if not provided
+        if not campaign_name:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            campaign_name = f"Courier_Campaign_{timestamp}"
+        
+        print(f"   Campaign base name: {campaign_name}")
+        
+        # Group emails by subject/content for campaign creation
+        # For simplicity, we'll create one campaign per unique subject
+        campaigns_created = {}
         results = []
+        
+        # Group emails by subject
+        email_groups = {}
         for email in approved_emails:
-            # Here you would call Instantly's API
-            # For now, just simulate success
-            results.append({
-                "to": email.get("to", ""),
-                "name": email.get("name", ""),
-                "status": "sent (simulated)",
-                "message": "Email sent successfully (demo mode)"
-            })
+            subject = email.get("subject", "No Subject")
+            if subject not in email_groups:
+                email_groups[subject] = []
+            email_groups[subject].append(email)
+        
+        print(f"📊 EMAIL GROUPING:")
+        print(f"   Creating {len(email_groups)} campaign(s) for {len(approved_emails)} emails")
+        for subject, emails in email_groups.items():
+            print(f"   Group '{subject}': {len(emails)} emails")
+        
+        # Process each group
+        for i, (subject, email_group) in enumerate(email_groups.items(), 1):
+            print(f"\n🏗️ PROCESSING GROUP {i}/{len(email_groups)}:")
+            print(f"   Subject: {subject}")
+            print(f"   Emails in group: {len(email_group)}")
+            
+            try:
+                # Create campaign with unique name for this group
+                group_campaign_name = f"{campaign_name}_{len(campaigns_created) + 1}"
+                print(f"   Creating campaign: {group_campaign_name}")
+                
+                campaign_id = instantly_client.create_campaign(
+                    group_campaign_name, 
+                    subject, 
+                    email_group[0]['body']  # Use first email's body as template
+                )
+                campaigns_created[subject] = campaign_id
+                print(f"   ✅ Campaign created with ID: {campaign_id}")
+                
+                # Add leads to the campaign
+                print(f"   📋 Adding {len(email_group)} leads to campaign...")
+                lead_addition_result = None
+                try:
+                    leads_response = instantly_client.add_leads_to_campaign(campaign_id, email_group)
+                    print(f"   ✅ Leads added successfully: {leads_response}")
+                    lead_addition_result = leads_response
+                except Exception as lead_error:
+                    print(f"   ⚠️ Warning: Failed to add leads to campaign: {lead_error}")
+                    lead_addition_result = {
+                        "error": str(lead_error),
+                        "total_leads": len(email_group),
+                        "successful_leads": 0,
+                        "failed_leads": len(email_group)
+                    }
+                
+                # Activate the campaign if leads were added successfully
+                activation_result = None
+                if lead_addition_result and lead_addition_result.get("successful_leads", 0) > 0:
+                    try:
+                        print(f"   🚀 Activating campaign...")
+                        activation_result = instantly_client.activate_campaign(campaign_id)
+                        print(f"   ✅ Campaign activated successfully!")
+                    except Exception as activation_error:
+                        print(f"   ⚠️ Warning: Failed to activate campaign: {activation_error}")
+                        print(f"   📝 Campaign created but needs manual activation in Instantly dashboard")
+                        activation_result = {
+                            "error": str(activation_error),
+                            "status": "needs_manual_activation",
+                            "message": "Campaign created successfully but needs manual activation in Instantly dashboard"
+                        }
+                
+                # Mark all emails in this group as successfully processed
+                for email_data in email_group:
+                    result_item = {
+                        "to": email_data["to"],
+                        "name": email_data["name"], 
+                        "subject": subject,
+                        "status": "success",
+                        "message": f"Campaign '{group_campaign_name}' created successfully",
+                        "campaign_id": campaign_id
+                    }
+                    
+                    # Add lead addition details to the result
+                    if lead_addition_result:
+                        result_item["lead_addition"] = lead_addition_result
+                    
+                    # Add activation details to the result
+                    if activation_result:
+                        result_item["activation"] = activation_result
+                        if activation_result.get("error"):
+                            result_item["activation_status"] = "failed"
+                            result_item["activation_message"] = "Campaign created but needs manual activation in dashboard"
+                        else:
+                            result_item["activation_status"] = "success"
+                            result_item["activation_message"] = "Campaign activated and ready to send"
+                    
+                    results.append(result_item)
+                
+                print(f"   ✅ Group completed: {len(email_group)} emails added to campaign")
+                
+            except Exception as e:
+                error_msg = str(e)
+                print(f"   ❌ Error creating campaign for subject '{subject}': {error_msg}")
+                
+                # Mark all emails in this group as failed
+                for email_data in email_group:
+                    results.append({
+                        "to": email_data["to"],
+                        "name": email_data["name"],
+                        "subject": subject,
+                        "status": "failed", 
+                        "message": f"Campaign creation failed: {error_msg}"
+                    })
+        
+        successful_sends = len([r for r in results if r["status"] == "success"])
+        failed_sends = len([r for r in results if r["status"] == "failed"])
+        activated_campaigns = len([r for r in results if r.get("activation_status") == "success"])
+        
+        print(f"\n📈 FINAL RESULTS:")
+        print(f"   Total processed: {len(approved_emails)}")
+        print(f"   Successful: {successful_sends}")
+        print(f"   Failed: {failed_sends}")
+        print(f"   Campaigns created: {len(campaigns_created)}")
+        print(f"   Campaigns activated: {activated_campaigns}")
         
         return {
-            "results": results, 
-            "total_sent": len(results),
-            "message": "All emails sent successfully (demo mode)"
+            "results": results,
+            "total_processed": len(approved_emails),
+            "successful_sends": successful_sends,
+            "failed_sends": failed_sends,
+            "campaigns_created": list(campaigns_created.values()),
+            "campaigns_activated": activated_campaigns,
+            "message": f"Processed {len(approved_emails)} emails via Instantly API with automatic activation",
+            "mode": "instantly"
         }
-    
+        
     except Exception as e:
-        return {"error": f"Failed to send emails: {str(e)}"}
+        print(f"❌ ERROR in Instantly email sending: {e}")
+        raise Exception(f"Instantly integration failed: {str(e)}")
+
+async def _send_emails_simulation(approved_emails: list) -> dict:
+    """Fallback simulation mode for when Instantly is not available"""
+    results = []
+    for email in approved_emails:
+        results.append({
+            "to": email.get("to", ""),
+            "name": email.get("name", ""),
+            "subject": email.get("subject", ""),
+            "status": "sent (simulated)",
+            "message": "Email sent successfully (demo mode - Instantly not configured)"
+        })
+    
+    return {
+        "results": results, 
+        "total_processed": len(results),
+        "successful_sends": len(results),
+        "failed_sends": 0,
+        "message": "All emails processed in simulation mode",
+        "mode": "simulation"
+    }
+
+@app.post("/campaign-status/")
+async def get_campaign_status(campaign_id: str = Body(...)):
+    """Get status of a specific campaign"""
+    try:
+        if not instantly_client.is_configured():
+            raise HTTPException(status_code=400, detail="Instantly API not configured")
+        
+        status = instantly_client.get_campaign_status(campaign_id)
+        return {"campaign_id": campaign_id, "status": status}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get campaign status: {str(e)}")
+
+@app.post("/pause-campaign/")
+async def pause_campaign(campaign_id: str = Body(...)):
+    """Pause a running campaign"""
+    try:
+        if not instantly_client.is_configured():
+            raise HTTPException(status_code=400, detail="Instantly API not configured")
+        
+        result = instantly_client.pause_campaign(campaign_id)
+        return {"campaign_id": campaign_id, "action": "paused", "result": result}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to pause campaign: {str(e)}")
+
+@app.post("/resume-campaign/")
+async def resume_campaign(campaign_id: str = Body(...)):
+    """Resume a paused campaign"""
+    try:
+        if not instantly_client.is_configured():
+            raise HTTPException(status_code=400, detail="Instantly API not configured")
+        
+        result = instantly_client.resume_campaign(campaign_id)
+        return {"campaign_id": campaign_id, "action": "resumed", "result": result}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to resume campaign: {str(e)}")
+
+@app.post("/activate-campaign/")
+async def activate_campaign(campaign_id: str = Body(...)):
+    """Activate a draft campaign"""
+    try:
+        if not instantly_client.is_configured():
+            raise HTTPException(status_code=400, detail="Instantly API not configured")
+        
+        result = instantly_client.activate_campaign(campaign_id)
+        return {"campaign_id": campaign_id, "action": "activated", "result": result}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to activate campaign: {str(e)}")
+
+@app.get("/test-campaign/{campaign_id}")
+async def test_campaign_status(campaign_id: str):
+    """Test endpoint to check campaign status and leads"""
+    if not instantly_client.is_configured():
+        return {"error": "Instantly API not configured", "mode": "simulation"}
+    
+    try:
+        print(f"🔍 CHECKING CAMPAIGN STATUS: {campaign_id}")
+        
+        # Get campaign details
+        campaign_status = instantly_client.get_campaign_status(campaign_id)
+        print(f"📊 Campaign Status: {campaign_status}")
+        
+        return {
+            "campaign_id": campaign_id,
+            "status": "success",
+            "campaign_details": campaign_status,
+            "mode": "instantly"
+        }
+        
+    except Exception as e:
+        print(f"❌ Error checking campaign: {e}")
+        return {
+            "campaign_id": campaign_id,
+            "error": str(e),
+            "status": "failed"
+        }
+
+@app.get("/test-campaign-leads/{campaign_id}")
+async def test_campaign_leads(campaign_id: str):
+    """Test endpoint to check campaign leads"""
+    if not instantly_client.is_configured():
+        return {"error": "Instantly API not configured", "mode": "simulation"}
+    
+    try:
+        print(f"🔍 CHECKING CAMPAIGN LEADS: {campaign_id}")
+        
+        # Get campaign leads
+        campaign_leads = instantly_client.get_campaign_leads(campaign_id)
+        print(f"📋 Campaign Leads: {campaign_leads}")
+        
+        return {
+            "campaign_id": campaign_id,
+            "status": "success",
+            "leads": campaign_leads,
+            "mode": "instantly"
+        }
+        
+    except Exception as e:
+        print(f"❌ Error checking campaign leads: {e}")
+        return {
+            "campaign_id": campaign_id,
+            "error": str(e),
+            "status": "failed"
+        }
+
+@app.post("/debug-lead-addition/")
+async def debug_lead_addition():
+    """Debug endpoint to test lead addition in deployment"""
+    try:
+        print("🔍 DEBUG: Testing lead addition in deployment environment")
+        
+        # Check client configuration
+        client_info = {
+            "is_configured": instantly_client.is_configured(),
+            "api_key_last_10": instantly_client.api_key[-10:] if instantly_client.api_key else "None",
+            "workspace_id": instantly_client.workspace_id,
+            "email_account_id": instantly_client.email_account_id
+        }
+        
+        print(f"📋 Client info: {client_info}")
+        
+        if not instantly_client.is_configured():
+            return {
+                "status": "error",
+                "message": "Instantly client not configured",
+                "client_info": client_info,
+                "environment_check": {
+                    "INSTANTLY_API_KEY": "SET" if os.getenv("INSTANTLY_API_KEY") else "NOT SET",
+                    "INSTANTLY_WORKSPACE_ID": "SET" if os.getenv("INSTANTLY_WORKSPACE_ID") else "NOT SET", 
+                    "INSTANTLY_EMAIL_ACCOUNT_ID": "SET" if os.getenv("INSTANTLY_EMAIL_ACCOUNT_ID") else "NOT SET"
+                }
+            }
+        
+        # Test creating a campaign
+        print("📋 Testing campaign creation...")
+        test_campaign_name = f"Debug_Test_{int(__import__('time').time())}"
+        campaign_id = instantly_client.create_campaign(
+            test_campaign_name,
+            "Debug Test Subject",
+            "Debug test body for deployment testing"
+        )
+        
+        print(f"✅ Campaign created: {campaign_id}")
+        
+        # Test adding a lead
+        print("📋 Testing lead addition...")
+        test_contacts = [{
+            "to": "deployment.debug@example.com",
+            "name": "Deployment Debug",
+            "company": "Debug Corp"
+        }]
+        
+        lead_result = instantly_client.add_leads_to_campaign(campaign_id, test_contacts)
+        
+        print(f"✅ Lead addition result: {lead_result}")
+        
+        return {
+            "status": "success",
+            "message": "Debug test completed successfully",
+            "client_info": client_info,
+            "campaign_id": campaign_id,
+            "campaign_name": test_campaign_name,
+            "lead_addition_result": lead_result,
+            "environment_check": {
+                "INSTANTLY_API_KEY": "SET" if os.getenv("INSTANTLY_API_KEY") else "NOT SET",
+                "INSTANTLY_WORKSPACE_ID": "SET" if os.getenv("INSTANTLY_WORKSPACE_ID") else "NOT SET",
+                "INSTANTLY_EMAIL_ACCOUNT_ID": "SET" if os.getenv("INSTANTLY_EMAIL_ACCOUNT_ID") else "NOT SET"
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ Debug test failed: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        return {
+            "status": "error",
+            "message": f"Debug test failed: {str(e)}",
+            "error_details": traceback.format_exc(),
+            "client_info": {
+                "is_configured": instantly_client.is_configured() if 'instantly_client' in locals() else False,
+                "api_key_last_10": instantly_client.api_key[-10:] if 'instantly_client' in locals() and instantly_client.api_key else "None"
+            }
+        }
 
 if __name__ == "__main__":
     import uvicorn
